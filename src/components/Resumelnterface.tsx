@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Upload,
@@ -20,12 +21,20 @@ import {
   Zap,
   Clock,
   Target,
+  MapPin,
+  DollarSign,
+  Building,
+  ExternalLink,
+  Heart,
+  Filter,
+  Search,
 } from "lucide-react";
 import {
   uploadResumeApi,
   analyzeResumeApi,
   ResumeData,
 } from "@/services/mockResumeApi";
+import { fetchJobsApi, Job } from "@/services/mockJobsApi";
 
 export default function ResumeInterface() {
   const [consent, setConsent] = useState(false);
@@ -35,6 +44,11 @@ export default function ResumeInterface() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [savedJobs, setSavedJobs] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleConsentChange = (checked: boolean | "indeterminate") => {
@@ -44,6 +58,16 @@ export default function ResumeInterface() {
   const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
+
+  useEffect(() => {
+    if (activeTab === "matching") {
+      setJobsLoading(true);
+      fetchJobsApi().then((data) => {
+        setJobs(data);
+        setJobsLoading(false);
+      });
+    }
+  }, [activeTab]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -120,6 +144,48 @@ export default function ResumeInterface() {
     fileInput?.click();
   };
 
+  const toggleSaveJob = (jobId: number) => {
+    setSavedJobs((prev) =>
+      prev.includes(jobId)
+        ? prev.filter((id) => id !== jobId)
+        : [...prev, jobId]
+    );
+
+    toast({
+      title: savedJobs.includes(jobId) ? "Job Removed" : "Job Saved",
+      description: savedJobs.includes(jobId)
+        ? "Removed from saved jobs"
+        : "Added to saved jobs",
+    });
+  };
+
+  const getMatchColor = (score: number) => {
+    if (score >= 90) return "bg-green-500";
+    if (score >= 80) return "bg-blue-500";
+    if (score >= 70) return "bg-yellow-500";
+    return "bg-gray-500";
+  };
+
+  const getMatchLabel = (score: number) => {
+    if (score >= 90) return "Excellent Match";
+    if (score >= 80) return "Good Match";
+    if (score >= 70) return "Fair Match";
+    return "Basic Match";
+  };
+
+  const filteredJobs = jobs.filter((job) => {
+    const q = searchQuery.trim().toLowerCase();
+    const loc = locationFilter.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      job.title.toLowerCase().includes(q) ||
+      job.company.toLowerCase().includes(q);
+
+    const matchesLocation = !loc || job.location.toLowerCase().includes(loc);
+
+    return matchesSearch && matchesLocation;
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-background to-blue-50/30 relative overflow-hidden">
       {/* Decorative background elements */}
@@ -182,7 +248,7 @@ export default function ResumeInterface() {
               <span className={activeTab === "parser" ? "font-semibold" : ""}>
                 Analyze
               </span>
-              <span className={activeTab === "coming" ? "font-semibold" : ""}>
+              <span className={activeTab === "matching" ? "font-semibold" : ""}>
                 Match
               </span>
             </div>
@@ -217,7 +283,7 @@ export default function ResumeInterface() {
               Resume Analysis
             </TabsTrigger>
             <TabsTrigger
-              value="coming"
+              value="matching"
               className="text-sm font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white transition-all duration-300"
             >
               <Briefcase className="w-4 h-4 mr-2" />
@@ -660,7 +726,7 @@ export default function ResumeInterface() {
                   <Button
                     disabled={!consent || !resumeData}
                     className="w-full h-14 text-lg font-medium bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-300 disabled:to-blue-400 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:transform-none"
-                    onClick={() => setActiveTab("coming")}
+                    onClick={() => setActiveTab("matching")}
                   >
                     <Briefcase className="w-5 h-5 mr-3" />
                     Find Perfect Job Matches
@@ -670,34 +736,310 @@ export default function ResumeInterface() {
             </div>
           </TabsContent>
 
-          {/* TAB 3: Enhanced Coming Soon */}
-          <TabsContent value="coming" className="animate-fade-in">
-            <Card className="text-center py-16 border-blue-100 shadow-xl bg-gradient-to-br from-white via-blue-50/30 to-white">
-              <CardContent className="space-y-8">
-                <div className="mx-auto w-24 h-24 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-xl animate-pulse">
-                  <Briefcase className="w-12 h-12 text-white" />
+          {/* TAB 3: Job Matching */}
+          <TabsContent value="matching" className="animate-fade-in">
+            <div className="space-y-8">
+              {/* Header with Search and Filters */}
+              <Card className="border-blue-100 shadow-xl bg-gradient-to-r from-white to-blue-50/30">
+                <CardHeader>
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-3 text-2xl">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                          <Briefcase className="w-5 h-5 text-white" />
+                        </div>
+                        Job Matches for {resumeData?.name || "You"}
+                      </CardTitle>
+                      <p className="text-muted-foreground mt-2">
+                        Found {filteredJobs.length} perfect matches based on
+                        your skills and experience
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        variant="secondary"
+                        className="bg-green-100 text-green-700 hover:bg-green-200"
+                      >
+                        <Target className="w-3 h-3 mr-1" />
+                        AI Matched
+                      </Badge>
+                      <Badge
+                        variant="secondary"
+                        className="bg-blue-100 text-blue-700 hover:bg-blue-200"
+                      >
+                        <Clock className="w-3 h-3 mr-1" />
+                        Real-time
+                      </Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        placeholder="Search jobs or companies..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 h-12 border-blue-200 focus:border-blue-500"
+                      />
+                    </div>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        placeholder="Filter by location..."
+                        value={locationFilter}
+                        onChange={(e) => setLocationFilter(e.target.value)}
+                        className="pl-10 h-12 border-blue-200 focus:border-blue-500 lg:w-64"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="h-12 px-6 border-blue-200 hover:bg-blue-50"
+                    >
+                      <Filter className="w-4 h-4 mr-2" />
+                      More Filters
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Job Cards Grid */}
+              {jobsLoading ? (
+                <div>Loading Jobs…</div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {filteredJobs.map((job) => (
+                    <Card
+                      key={job.id}
+                      className="border-blue-100 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-white to-blue-50/20"
+                    >
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-blue-200 rounded-xl flex items-center justify-center text-2xl">
+                              {job.logo}
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg text-blue-900 hover:text-blue-700 transition-colors">
+                                {job.title}
+                              </CardTitle>
+                              <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                                <Building className="w-3 h-3" />
+                                {job.company}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleSaveJob(job.id)}
+                            className={`${
+                              savedJobs.includes(job.id)
+                                ? "text-red-500 hover:text-red-600"
+                                : "text-gray-400 hover:text-red-500"
+                            } transition-colors`}
+                          >
+                            <Heart
+                              className={`w-4 h-4 ${
+                                savedJobs.includes(job.id) ? "fill-current" : ""
+                              }`}
+                            />
+                          </Button>
+                        </div>
+
+                        {/* Match Score */}
+                        <div className="flex items-center justify-between mt-4 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <div className="w-12 h-12 relative">
+                                <svg
+                                  className="w-12 h-12 transform -rotate-90"
+                                  viewBox="0 0 36 36"
+                                >
+                                  <path
+                                    d="m18,2.0845 a 15.9155,15.9155 0 0,1 0,31.831 a 15.9155,15.9155 0 0,1 0,-31.831"
+                                    fill="none"
+                                    stroke="#e5e7eb"
+                                    strokeWidth="2"
+                                  />
+                                  <path
+                                    d="m18,2.0845 a 15.9155,15.9155 0 0,1 0,31.831 a 15.9155,15.9155 0 0,1 0,-31.831"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeDasharray={`${job.matchScore}, 100`}
+                                    className={getMatchColor(
+                                      job.matchScore
+                                    ).replace("bg-", "text-")}
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className="text-xs font-bold text-gray-700">
+                                    {job.matchScore}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm text-blue-900">
+                                {getMatchLabel(job.matchScore)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Based on your skills
+                              </p>
+                            </div>
+                          </div>
+                          <Badge
+                            className={`${getMatchColor(
+                              job.matchScore
+                            )} text-white border-none`}
+                          >
+                            {job.matchScore}% Match
+                          </Badge>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4">
+                        {/* Job Details */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-blue-600" />
+                            <span className="text-muted-foreground">
+                              {job.location}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-green-600" />
+                            <span className="text-muted-foreground">
+                              {job.salary}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Briefcase className="w-4 h-4 text-purple-600" />
+                            <span className="text-muted-foreground">
+                              {job.type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-orange-600" />
+                            <span className="text-muted-foreground">
+                              {job.posted}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Job Description */}
+                        <div>
+                          <p className="text-sm text-gray-700 line-clamp-3">
+                            {job.description}
+                          </p>
+                        </div>
+
+                        {/* Skills Match */}
+                        <div>
+                          <h5 className="font-semibold text-sm text-blue-900 mb-2">
+                            Required Skills
+                          </h5>
+                          <div className="flex flex-wrap gap-2">
+                            {job.requirements
+                              .slice(0, 4)
+                              .map((skill, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="secondary"
+                                  className={`text-xs ${
+                                    resumeData?.skills.some(
+                                      (userSkill) =>
+                                        userSkill
+                                          .toLowerCase()
+                                          .includes(skill.toLowerCase()) ||
+                                        skill
+                                          .toLowerCase()
+                                          .includes(userSkill.toLowerCase())
+                                    )
+                                      ? "bg-green-100 text-green-700 border-green-200"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
+                                >
+                                  {skill}
+                                </Badge>
+                              ))}
+                            {job.requirements.length > 4 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{job.requirements.length - 4} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Benefits Preview */}
+                        <div>
+                          <h5 className="font-semibold text-sm text-blue-900 mb-2">
+                            Benefits
+                          </h5>
+                          <div className="flex flex-wrap gap-2">
+                            {job.benefits.slice(0, 3).map((benefit, index) => (
+                              <Badge
+                                key={index}
+                                variant="outline"
+                                className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                              >
+                                {benefit}
+                              </Badge>
+                            ))}
+                            {job.benefits.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{job.benefits.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 pt-4 border-t border-blue-100">
+                          <Button className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white">
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Apply Now
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="border-blue-200 hover:bg-blue-50"
+                          >
+                            View Details
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <div className="space-y-4">
-                  <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                    Intelligent Job Matching Engine
-                  </h2>
-                  <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed">
-                    Our revolutionary AI will analyze your skills, experience,
-                    and career aspirations to match you with opportunities that
-                    perfectly align with your professional goals. Get ready for
-                    personalized job recommendations like never before!
-                  </p>
-                </div>
-                <div className="flex items-center justify-center gap-3 text-sm bg-gradient-to-r from-blue-100 to-blue-200 px-6 py-3 rounded-full border border-blue-300 w-fit mx-auto">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-100"></div>
-                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-200"></div>
-                  <span className="font-medium text-blue-700 ml-2">
-                    Coming soon in the next update
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+
+              {/* No Results State */}
+              {filteredJobs.length === 0 && (
+                <Card className="text-center py-16 border-blue-100 shadow-xl bg-gradient-to-br from-white to-blue-50/30">
+                  <CardContent>
+                    <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                      No jobs found
+                    </h3>
+                    <p className="text-muted-foreground mb-6">
+                      Try adjusting your search criteria or location filter
+                    </p>
+                    <Button
+                      onClick={() => {
+                        setSearchQuery("");
+                        setLocationFilter("");
+                      }}
+                      variant="outline"
+                      className="border-blue-200 hover:bg-blue-50"
+                    >
+                      Clear Filters
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
