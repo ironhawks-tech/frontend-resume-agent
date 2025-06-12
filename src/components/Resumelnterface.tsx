@@ -59,16 +59,6 @@ export default function ResumeInterface() {
     setActiveTab(value);
   };
 
-  useEffect(() => {
-    if (activeTab === "matching") {
-      setJobsLoading(true);
-      fetchJobsApi().then((data) => {
-        setJobs(data);
-        setJobsLoading(false);
-      });
-    }
-  }, [activeTab]);
-
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -726,7 +716,13 @@ export default function ResumeInterface() {
                   <Button
                     disabled={!consent || !resumeData}
                     className="w-full h-14 text-lg font-medium bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-300 disabled:to-blue-400 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:transform-none"
-                    onClick={() => setActiveTab("matching")}
+                    onClick={async () => {
+                      setJobsLoading(true);
+                      const data = await fetchJobsApi();
+                      setJobs(data);
+                      setJobsLoading(false);
+                      handleTabChange("matching");
+                    }}
                   >
                     <Briefcase className="w-5 h-5 mr-3" />
                     Find Perfect Job Matches
