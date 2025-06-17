@@ -10,8 +10,8 @@ import {
   ExternalLink,
   Heart,
 } from "lucide-react";
-import { Job } from "@/services/mockJobsApi";
-import { ResumeData } from "@/services/mockResumeApi";
+import { Job } from "@/mocks/mockJobsApi";
+import { ResumeData } from "@/mocks/mockResumeApi";
 
 interface JobMatchesProps {
   jobs: Job[];

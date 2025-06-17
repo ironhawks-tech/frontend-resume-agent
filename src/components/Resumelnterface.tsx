@@ -25,8 +25,8 @@ import {
   uploadResumeApi,
   analyzeResumeApi,
   ResumeData,
-} from "@/services/mockResumeApi";
-import { fetchJobsApi, Job } from "@/services/mockJobsApi";
+} from "@/mocks/mockResumeApi";
+import { fetchJobsApi, Job } from "@/mocks/mockJobsApi";
 
 export default function ResumeInterface() {
   const [consent, setConsent] = useState(false);
